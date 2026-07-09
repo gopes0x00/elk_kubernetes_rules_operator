@@ -1,0 +1,9 @@
+apiVersion: elasticdetectionrules.gopes0x00.internal/v1
+kind: ElasticDetectionRule
+metadata:
+  labels:
+    app.kubernetes.io/name: elastic-rules
+    app.kubernetes.io/managed-by: kustomize
+  name: elasticdetectionrule-sample
+spec:
+  # TODO(user): Add fields here
