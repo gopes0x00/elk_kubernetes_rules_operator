@@ -1,121 +1,106 @@
-# elastic-rules
-// TODO(user): Add simple overview of use/purpose
+# Elastic Detection Rules Operator (`elastic-rules`)
+
+`elastic-rules` is a Kubernetes operator built with `controller-runtime` and `kubebuilder` that manages Elastic Detection Engine Rules declaratively using Custom Resource Definitions (CRDs).
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+The `ElasticDetectionRule` CRD allows security engineers and cluster administrators to manage Elastic detection rules directly through Kubernetes manifests.
+
+### Key Features
+- **Lifecycle Management**: Automatically creates, updates, and deletes detection rules in Elastic Kibana via HTTP APIs.
+- **Drift Detection & Auto-Recreation**: Periodically polls Elastic every minute to ensure rules exist and automatically recreates them if deleted out-of-band in Kibana.
+- **Kubernetes Finalizers**: Ensures graceful rule deletion in Elastic when a Custom Resource (`ElasticDetectionRule`) is deleted from Kubernetes.
+- **Status Tracking**: Updates CR `.status` with Elastic `ruleId`, `lastUpdated` timestamp, and `observedGeneration`.
+
+---
+
+## CRD Specification (`ElasticDetectionRule`)
+
+```yaml
+apiVersion: elasticdetectionrules.gopes0x00.internal/v1
+kind: ElasticDetectionRule
+metadata:
+  name: k8s-pod-creation-audit
+  namespace: elk
+spec:
+  name: "Kubernetes Pod Created via API Server Audit Logs"
+  description: "Detects successful creation of a Kubernetes Pod in API server audit logs."
+  type: "query" # Enum: query, eql, threshold, etc.
+  query: 'verb: "create" and objectRef.resource: "pods" and responseStatus.code: 201 and stage: "ResponseComplete"'
+  index:
+    - "kubernetes-audit-*"
+  severity: "medium" # Enum: low, medium, high, critical
+  risk_score: 50
+  enabled: true
+```
+
+---
 
 ## Getting Started
 
 ### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Go version `v1.22+`
+- Docker or Podman
+- `kubectl` configured with cluster access
+- Elastic / Kibana instance with Detection Engine API enabled
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+### Running Locally
+
+1. **Install CRDs into your Kubernetes cluster:**
+   ```sh
+   make install
+   ```
+
+2. **Run the controller locally:**
+   Pass your Elastic URL and credentials via CLI flags or Make arguments:
+   ```sh
+   make run ARGS="--elastic-url=http://192.168.1.92:30601 --elastic-username=api_rule_user --elastic-password=LetMeIn123"
+   ```
+
+3. **Apply a Sample Detection Rule:**
+   ```sh
+   kubectl apply -f config/samples/k8s_pod_creation_rule.yaml
+   ```
+
+---
+
+## Command Line Flags
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--elastic-url` | The URL of the Elastic/Kibana server | `http://192.168.1.92:30601` |
+| `--elastic-username` | Elastic authentication username | `api_rule_user` |
+| `--elastic-password` | Elastic authentication password | `LetMeIn123` |
+| `--metrics-bind-address` | Address for metrics endpoint (`0` to disable) | `0` |
+| `--health-probe-bind-address` | Address for health probe | `:8081` |
+
+---
+
+## Deployment to Cluster
+
+1. **Build and push container image:**
+   ```sh
+   make docker-build docker-push IMG=<your-registry>/elastic-rules-operator:v0.1.0
+   ```
+
+2. **Deploy to cluster:**
+   ```sh
+   make deploy IMG=<your-registry>/elastic-rules-operator:v0.1.0
+   ```
+
+---
+
+## Cleanup
+
+To remove installed resources from your cluster:
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/elastic-rules:tag
-```
-
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
-```sh
-make install
-```
-
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/elastic-rules:tag
-```
-
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
-```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
+kubectl delete -f config/samples/k8s_pod_creation_rule.yaml
 make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
 make undeploy
 ```
 
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/elastic-rules:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/elastic-rules/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+---
 
 ## License
 
@@ -132,4 +117,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
