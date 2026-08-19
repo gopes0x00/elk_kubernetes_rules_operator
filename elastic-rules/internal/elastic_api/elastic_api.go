@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	v1 "github.com/gopes0x00/elastic-rules-operator/api/v1"
 )
@@ -52,24 +53,108 @@ func (a *ElasticConnection) doRequest(method, endpoint string, body []byte) ([]b
 	return respBody, nil
 }
 
-func (a *ElasticConnection) CreateRule(rule v1.ElasticDetectionRule) (v1.ElasticDetectionRuleStatus, error) {
-	jsonData, err := json.Marshal(rule.Spec)
+func sanitizePayload(rule v1.ElasticDetectionRule) (map[string]interface{}, error) {
+	payload := make(map[string]interface{})
+	specData, err := json.Marshal(rule.Spec)
 	if err != nil {
-		return v1.ElasticDetectionRuleStatus{}, fmt.Errorf("failed to marshal spec: %w", err)
+		return nil, fmt.Errorf("failed to marshal spec: %w", err)
+	}
+	if err := json.Unmarshal(specData, &payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal spec into map: %w", err)
+	}
+
+	// Normalize name
+	if nameVal, ok := payload["name"].(string); !ok || nameVal == "" {
+		if oldName, ok := payload["rulename"].(string); ok && oldName != "" {
+			payload["name"] = oldName
+		} else {
+			payload["name"] = rule.Name
+		}
+	}
+	delete(payload, "rulename")
+
+	// Normalize risk_score
+	if scoreVal, ok := payload["risk_score"].(float64); !ok || scoreVal == 0 {
+		if oldScore, ok := payload["riskscore"].(float64); ok && oldScore > 0 {
+			payload["risk_score"] = int(oldScore)
+		} else if rule.Spec.RiskScore > 0 {
+			payload["risk_score"] = rule.Spec.RiskScore
+		} else {
+			payload["risk_score"] = 50
+		}
+	}
+	delete(payload, "riskscore")
+
+	// Normalize severity (must be lowercase)
+	if sev, ok := payload["severity"].(string); ok {
+		payload["severity"] = strings.ToLower(sev)
+	} else {
+		payload["severity"] = "medium"
+	}
+
+	// Normalize rule type and query defaults
+	ruleType, _ := payload["type"].(string)
+	if ruleType == "" || ruleType == "foo" {
+		payload["type"] = "query"
+		ruleType = "query"
+	}
+	if ruleType == "query" {
+		if q, ok := payload["query"].(string); !ok || q == "" {
+			payload["query"] = "process.name : *"
+		}
+	}
+
+	// Normalize index pattern (default to ["kubernetes-audit-*", "logs-*"] if omitted)
+	var hasIndex bool
+	if idxArr, ok := payload["index"].([]interface{}); ok && len(idxArr) > 0 {
+		hasIndex = true
+	} else if len(rule.Spec.Index) > 0 {
+		hasIndex = true
+	}
+	if !hasIndex {
+		payload["index"] = []string{"kubernetes-audit-*", "logs-*", "auditbeat-*"}
+	}
+
+	if rule.Status.RuleID != "" {
+		payload["rule_id"] = rule.Status.RuleID
+	} else if rule.Name != "" {
+		payload["rule_id"] = rule.Name
+	}
+
+	return payload, nil
+}
+
+func (a *ElasticConnection) CreateRule(rule v1.ElasticDetectionRule) (string, error) {
+	payload, err := sanitizePayload(rule)
+	if err != nil {
+		return "", err
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	endpoint := fmt.Sprintf("%s/api/detection_engine/rules", a.Url)
 	respBody, err := a.doRequest("POST", endpoint, jsonData)
 	if err != nil {
-		return v1.ElasticDetectionRuleStatus{}, err
+		return "", err
 	}
 
-	var ruleResponse v1.ElasticDetectionRuleStatus
-	if err := json.Unmarshal(respBody, &ruleResponse); err != nil {
-		return v1.ElasticDetectionRuleStatus{}, fmt.Errorf("failed to unmarshal response: %w", err)
+	var respStruct struct {
+		RuleID string `json:"rule_id"`
+		ID     string `json:"id"`
+	}
+	if err := json.Unmarshal(respBody, &respStruct); err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	return ruleResponse, nil
+	ruleID := respStruct.RuleID
+	if ruleID == "" {
+		ruleID = respStruct.ID
+	}
+
+	return ruleID, nil
 }
 
 func (a *ElasticConnection) DeleteRule(ruleid string) ([]byte, error) {
@@ -79,11 +164,14 @@ func (a *ElasticConnection) DeleteRule(ruleid string) ([]byte, error) {
 }
 
 func (a *ElasticConnection) UpdateRule(rule v1.ElasticDetectionRule) error {
-
-	//jsonData requires the rule ID and the field(s) to be patched
-	jsonData, err := json.Marshal(rule.Spec)
+	payload, err := sanitizePayload(rule)
 	if err != nil {
-		return fmt.Errorf("failed to marshal spec: %w", err)
+		return err
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal update payload: %w", err)
 	}
 
 	// Elastic uses PATCH for partial updates or updates via the detection engine API

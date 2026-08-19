@@ -79,6 +79,13 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	var elasticURL string
+	var elasticUsername string
+	var elasticPassword string
+	flag.StringVar(&elasticURL, "elastic-url", "http://192.168.1.92:30601", "The Elastic/Kibana server URL.")
+	flag.StringVar(&elasticUsername, "elastic-username", "elastic_user", "The Elastic/Kibana username.")
+	flag.StringVar(&elasticPassword, "elastic-password", "[PASSWORD]", "The Elastic/Kibana password.")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -161,17 +168,6 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "f4e7dc8d.gopes0x00.internal",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "Failed to start manager")
@@ -179,8 +175,11 @@ func main() {
 	}
 
 	if err := (&controller.ElasticDetectionRuleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		ElasticURL:      elasticURL,
+		ElasticUsername: elasticUsername,
+		ElasticPassword: elasticPassword,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "ElasticDetectionRule")
 		os.Exit(1)

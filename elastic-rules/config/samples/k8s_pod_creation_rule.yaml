@@ -1,0 +1,16 @@
+apiVersion: elasticdetectionrules.gopes0x00.internal/v1
+kind: ElasticDetectionRule
+metadata:
+  name: k8s-pod-creation-audit
+  namespace: elk
+spec:
+  name: "Kubernetes Pod Created via API Server Audit Logs"
+  description: "Detects successful creation of a Kubernetes Pod in API server audit logs."
+  type: "query"
+  query: 'verb: "create" and objectRef.resource: "pods" and responseStatus.code: 201 and stage: "ResponseComplete"'
+  index:
+    - "kubernetes-audit-*"
+  severity: "medium"
+  risk_score: 50
+  enabled: true
+

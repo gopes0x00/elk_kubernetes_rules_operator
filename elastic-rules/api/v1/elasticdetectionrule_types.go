@@ -32,12 +32,16 @@ type ElasticDetectionRuleSpec struct {
 
 	// foo is an example field of ElasticDetectionRule. Edit elasticdetectionrule_types.go to remove/update
 	// +optional
-	RuleName    string `json:"rulename"`
-	Description string `json:"description"`
-	Type        string `json:"type"` // Enum: query, eql, threshold, etc.
-	Enabled     *bool  `json:"enabled,omitempty"`
-	RiskScore   int    `json:"riskscore"`
-	Severity    string `json:"severity"` // Enum: low, medium, high, critical
+	RuleName     string   `json:"name,omitempty"`
+	RuleNameOld  string   `json:"rulename,omitempty"`
+	Description  string   `json:"description"`
+	Type         string   `json:"type"` // Enum: query, eql, threshold, etc.
+	Query        string   `json:"query,omitempty"`
+	Index        []string `json:"index,omitempty"`
+	Enabled      *bool    `json:"enabled,omitempty"`
+	RiskScore    int      `json:"risk_score,omitempty"`
+	RiskScoreOld int      `json:"riskscore,omitempty"`
+	Severity     string   `json:"severity"` // Enum: low, medium, high, critical
 }
 
 // ElasticDetectionRuleStatus defines the observed state of ElasticDetectionRule.
@@ -45,8 +49,17 @@ type ElasticDetectionRuleStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// RuleID is the Elastic detection rule ID.
+	// +optional
+	RuleID string `json:"ruleId,omitempty"`
+
+	// LastUpdated is the timestamp of the last successful create or update operation.
+	// +optional
+	LastUpdated *metav1.Time `json:"lastUpdated,omitempty"`
+
+	// ObservedGeneration represents the last generation of the spec that was reconciled.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// conditions represent the current state of the ElasticDetectionRule resource.
 	// Each condition has a unique type and reflects the status of a specific aspect of the resource.

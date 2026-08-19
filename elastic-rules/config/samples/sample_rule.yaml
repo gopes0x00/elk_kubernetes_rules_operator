@@ -1,10 +1,8 @@
 apiVersion: elasticdetectionrules.gopes0x00.internal/v1
 kind: ElasticDetectionRule
 metadata:
-  labels:
-    app.kubernetes.io/name: elastic-rules
-    app.kubernetes.io/managed-by: kustomize
-  name: sample-detection-rule-k8s
+  name: sample-detection-rule
+  namespace: elk
 spec:
   name: "Sample Detection Rule - Suspicious Execution"
   description: "Detects execution of suspicious commands or binaries"

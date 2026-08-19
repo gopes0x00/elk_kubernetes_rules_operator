@@ -44,11 +44,21 @@ spec:
                 type: string
               enabled:
                 type: boolean
+              index:
+                items:
+                  type: string
+                type: array
+              name:
+                description: foo is an example field of ElasticDetectionRule. Edit
+                  elasticdetectionrule_types.go to remove/update
+                type: string
+              query:
+                type: string
+              risk_score:
+                type: integer
               riskscore:
                 type: integer
               rulename:
-                description: foo is an example field of ElasticDetectionRule. Edit
-                  elasticdetectionrule_types.go to remove/update
                 type: string
               severity:
                 type: string
@@ -56,7 +66,6 @@ spec:
                 type: string
             required:
             - description
-            - riskscore
             - severity
             - type
             type: object
@@ -132,6 +141,19 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastUpdated:
+                description: LastUpdated is the timestamp of the last successful create
+                  or update operation.
+                format: date-time
+                type: string
+              observedGeneration:
+                description: ObservedGeneration represents the last generation of
+                  the spec that was reconciled.
+                format: int64
+                type: integer
+              ruleId:
+                description: RuleID is the Elastic detection rule ID.
+                type: string
             type: object
         required:
         - spec
